@@ -1,3 +1,5 @@
+#![feature(duration_consts_2)]
+
 use rand::distributions::{Distribution, Uniform};
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -7,10 +9,11 @@ use itertools::Itertools;
 
 use rayon::prelude::*;
 
-const TABLE_SIZE: usize = 9;
+const TABLE_SIZE: usize = 11;
 const TABLE_SIZE_MINUS_ONE: i64 = (TABLE_SIZE as i64) - 1;
 const TESTS_COUNT: usize = 10000;
-const MINMAX_DEPTH: usize = 16;
+const MINMAX_DEPTH: usize = 32;
+const ITERATIVE_TIME: std::time::Duration = std::time::Duration::from_secs_f64(30.0);
 
 #[derive(Clone)]
 struct Node {
@@ -150,6 +153,22 @@ impl Node {
             foo.par_sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
 
         return foo.par_iter().take(5).map(|x| *x).collect();
+    }
+
+    fn get_optimal_moves_iterative_deeping(&mut self) -> (usize, Vec<(i32, Position)>) {
+        let instant = std::time::Instant::now();
+
+        let mut moves = (0, Vec::new());
+        
+        for i in 2.. {
+            if std::time::Instant::now() > instant + ITERATIVE_TIME {
+                break;
+            }
+            let mvs = self.get_optimal_moves(i as u16);
+            moves = (i, mvs);
+        }
+
+        return moves;
     }
 }
 
@@ -329,146 +348,12 @@ impl std::fmt::Display for State {
 
 fn main() {
     println!("Table size: {}", TABLE_SIZE);
-    println!("AlphaBetaNegamax depth: {}\n", MINMAX_DEPTH);
 
     let mut node = Node::random();
-    let moves = node.get_optimal_moves(MINMAX_DEPTH as u16);
+    //let moves = node.get_optimal_moves(MINMAX_DEPTH as u16);
 
     println!("{}", node);
 
-    println!("Best moves for white player:");
-
-    for (i, (score, pos)) in moves.iter().enumerate() {
-        println!(
-            "{}. {}{} score: {}",
-            i + 1,
-            std::char::from_u32('A' as u32 + pos.1 as u32).unwrap(),
-            pos.0 + 1,
-            score
-        );
-    }
+    let moves = node.get_optimal_moves_iterative_deeping();
+    println!("In {:#?} found {} best moves at {} depth", ITERATIVE_TIME, moves.1.len(), moves.0);
 }
-
-// fn main() {
-//     println!("For table size: {}", TABLE_SIZE);
-//     println!("Number of tests: {}", TESTS_COUNT);
-
-//     // =============
-//     // 1 Method
-//     // =============
-//     {
-//         println!("=============");
-//         println!("1 Method");
-//         println!("=============");
-
-//         let mut branches: Vec<usize> = Vec::new();
-//         let mut depths = Vec::new();
-
-//         let mut pb = ProgressBar::new(TESTS_COUNT as u64);
-//         pb.set_style(
-//             ProgressStyle::default_bar()
-//                 .template("[{elapsed_precise}] [{bar:100.gray/white}]")
-//                 .progress_chars("=>."),
-//         );
-
-//         for _ in 0..TESTS_COUNT {
-//             let mut branches_local = Vec::new();
-//             let mut depth = 0;
-//             let mut state = State::new();
-//             let mut rng = rand::thread_rng();
-
-//             for _ in 0..TABLE_SIZE_MINUS_ONE {
-//                 let black_poses = state.possible_places();
-//                 branches_local.push(black_poses.len());
-
-//                 let dec = black_poses[rng.gen_range(0, black_poses.len())];
-
-//                 state.place(dec.0, dec.1, Color::Black);
-
-//                 depth += 1;
-
-//                 // ============================
-
-//                 let white_poses = state.possible_places();
-//                 branches_local.push(black_poses.len());
-
-//                 let dec2 = white_poses[rng.gen_range(0, white_poses.len())];
-
-//                 state.place(dec2.0, dec2.1, Color::White);
-
-//                 depth += 1;
-//             }
-
-//             'endgame: loop {
-//                 let black_grows = state.possible_grows(Color::Black);
-//                 if black_grows.len() != 0 {
-//                     branches_local.push(black_grows.len());
-//                     depth += 1;
-
-//                     let dec = black_grows[rng.gen_range(0, black_grows.len())];
-//                     state.place(dec.0, dec.1, Color::Black);
-//                 }
-//                 if state.is_finished() {
-//                     break 'endgame;
-//                 }
-
-//                 let white_grows = state.possible_grows(Color::White);
-//                 if white_grows.len() != 0 {
-//                     branches_local.push(black_grows.len());
-//                     depth += 1;
-
-//                     let dec = white_grows[rng.gen_range(0, white_grows.len())];
-//                     state.place(dec.0, dec.1, Color::White);
-//                 }
-//                 if state.is_finished() {
-//                     break 'endgame;
-//                 }
-//             }
-//             depths.push(depth);
-//             branches.push(branches_local.iter().sum::<usize>() / branches_local.len());
-//             pb.inc(1);
-//         }
-//         pb.finish();
-//         let branches_avg = branches.iter().sum::<usize>() / branches.len();
-//         let depths_avg = depths.iter().sum::<usize>() / depths.len();
-//         println!("Average branch count: {}", branches_avg);
-//         println!("Average height of decision tree: {}", depths_avg);
-//         println!("Game complexity: {}^{}", branches_avg, depths_avg);
-//     }
-//     // =============
-//     // 2 Method
-//     // =============
-//     {
-//         println!("=============");
-//         println!("2 Method");
-//         println!("=============");
-
-//         let n: f64 = (TABLE_SIZE * TABLE_SIZE).pow(3) as f64;
-//         let mut ress = Vec::new();
-
-//         let mut pb = ProgressBar::new(TESTS_COUNT as u64);
-//         pb.set_style(
-//             ProgressStyle::default_bar()
-//                 .template("[{elapsed_precise}] [{bar:100.gray/white}]")
-//                 .progress_chars("=>."),
-//         );
-
-//         for _ in 0..TESTS_COUNT {
-//             ress.push(
-//                 ((0..10_000)
-//                     .map(|_| State::random())
-//                     .filter(|state| state.is_viable())
-//                     .count() as f64
-//                     / 100.0)
-//                     * n,
-//             );
-//             pb.inc(1);
-//         }
-//         pb.finish();
-
-//         println!(
-//             "Game complexity: {}",
-//             (ress.iter().sum::<f64>() / ress.len() as f64) as u64
-//         );
-//     }
-// }
