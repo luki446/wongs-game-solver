@@ -147,10 +147,20 @@ impl Node {
             .state
             .possible_grows(Color::White)
             .par_iter()
-            .map(|pos| (self.with(*pos, Color::White).abnegamax(depth - 1, std::i32::MIN, std::i32::MAX, -1), *pos))
+            .map(|pos| {
+                (
+                    self.with(*pos, Color::White).abnegamax(
+                        depth - 1,
+                        std::i32::MIN,
+                        std::i32::MAX,
+                        -1,
+                    ),
+                    *pos,
+                )
+            })
             .collect();
-  
-            foo.par_sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+
+        foo.par_sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
 
         return foo.par_iter().take(5).map(|x| *x).collect();
     }
@@ -159,7 +169,7 @@ impl Node {
         let instant = std::time::Instant::now();
 
         let mut moves = (0, Vec::new());
-        
+
         for i in 2.. {
             if std::time::Instant::now() > instant + ITERATIVE_TIME {
                 break;
@@ -355,5 +365,10 @@ fn main() {
     println!("{}", node);
 
     let moves = node.get_optimal_moves_iterative_deeping();
-    println!("In {:#?} found {} best moves at {} depth", ITERATIVE_TIME, moves.1.len(), moves.0);
+    println!(
+        "In {:#?} found {} best moves at {} depth",
+        ITERATIVE_TIME,
+        moves.1.len(),
+        moves.0
+    );
 }
